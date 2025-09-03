@@ -1,6 +1,25 @@
 import pygame
 import random
+import threading
+from flask import Flask
 
+# ------------------ Flask Setup ------------------
+app = Flask(__name__)
+
+current_score = 0  # Shared variable to hold the latest score
+
+@app.route('/')
+def home():
+    return "<h1>Welcome to Snake Game Server</h1><p>The game is running on desktop.</p>"
+
+@app.route('/score')
+def show_score():
+    return f"<h1>Current Score: {current_score}</h1>"
+
+def run_flask():
+    app.run(port=5000)
+
+# ------------------ Pygame Setup ------------------
 # Initialize pygame
 pygame.init()
 
@@ -10,20 +29,19 @@ black = (0, 0, 0)
 red = (255, 0, 0)
 green = (0, 255, 0)
 dark_green = (0, 200, 0)
-blue = (0, 0, 255)
-gray = (128, 128, 128)  # Define gray color
+gray = (128, 128, 128)
 
 # Game settings
 width, height = 600, 400
-grid_size = 10  # Define grid size
+grid_size = 10
 snake_speed = 10
 
 # Initialize display
 screen = pygame.display.set_mode((width, height))
 pygame.display.set_caption('Classic Snake Game')
-
 clock = pygame.time.Clock()
 
+# ------------------ Drawing Functions ------------------
 def draw_grid():
     for x in range(0, width, grid_size):
         pygame.draw.line(screen, (50, 50, 50), (x, 0), (x, height))
@@ -38,7 +56,7 @@ def draw_snake(snake):
 def draw_food(food_pos):
     pygame.draw.rect(screen, red, (food_pos[0], food_pos[1], grid_size, grid_size))
 
-def show_score(score):
+def show_score_text(score):
     font = pygame.font.SysFont('Arial', 20)
     score_text = font.render(f"Score: {score}", True, white)
     screen.blit(score_text, [10, 10])
@@ -51,22 +69,23 @@ def game_over_screen(score):
     game_over_text = font_large.render("GAME OVER!", True, red)
     score_text = font_small.render(f"Final score: {score}", True, white)
     restart_text = font_small.render("Press R to Restart or Q to Quit", True, gray)
-        
-    screen.blit(game_over_text, [width//2 - 120, height//2 - 60])
-    screen.blit(score_text, [width//2 - 80, height//2 - 10])
-    screen.blit(restart_text, [width//2 - 150, height//2 + 40])
+
+    screen.blit(game_over_text, [width // 2 - 120, height // 2 - 60])
+    screen.blit(score_text, [width // 2 - 80, height // 2 - 10])
+    screen.blit(restart_text, [width // 2 - 150, height // 2 + 40])
 
     pygame.display.update()
 
+# ------------------ Game Logic ------------------
 def game():
+    global current_score
+
     running = True
     game_active = True
 
-    # Initial snake position
     snake = [[width // 2, height // 2]]
     snake_direction = [0, 0]
 
-    # Initial food position
     food = [
         random.randint(0, (width - grid_size) // grid_size) * grid_size,
         random.randint(0, (height - grid_size) // grid_size) * grid_size
@@ -91,7 +110,7 @@ def game():
             else:
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_r:
-                        game()  # Restart game
+                        game()  # Restart the game
                         return
                     elif event.key == pygame.K_q:
                         running = False
@@ -104,11 +123,11 @@ def game():
             # Check for food collision
             if snake[0] == food:
                 score += 1
+                current_score = score  # Update shared variable for Flask
                 food = [
                     random.randint(0, (width - grid_size) // grid_size) * grid_size,
                     random.randint(0, (height - grid_size) // grid_size) * grid_size
                 ]
-                # Make sure food doesn't spawn on snake
                 while food in snake:
                     food = [
                         random.randint(0, (width - grid_size) // grid_size) * grid_size,
@@ -125,10 +144,10 @@ def game():
 
             # Draw everything
             screen.fill(black)
-            draw_grid()  # Draw the grid
+            draw_grid()
             draw_snake(snake)
             draw_food(food)
-            show_score(score)
+            show_score_text(score)
         else:
             game_over_screen(score)
 
@@ -137,6 +156,10 @@ def game():
 
     pygame.quit()
 
-# Start the game
+# ------------------ Entry Point ------------------
 if __name__ == "__main__":
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.daemon = True
+    flask_thread.start()
+
     game()
